@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Retraite"/>
+  <meta name="theme-color" content="#060d18"/>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <title>Simulateur Retraite</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#060d18;color:#e2e8f0;font-family:'Inter',sans-serif;min-height:100vh;overscroll-behavior:none;-webkit-font-smoothing:antialiased;}
+    input,select,button,textarea{font-family:inherit;}
+    ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:#0d1829;} ::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:2px;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .fade{animation:fadeUp .25s ease both;}
+  
+/* === Mobile-first overrides added by ChatGPT === */
+:root{
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+html{
+  -webkit-text-size-adjust: 100%;
+}
+body{
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding-bottom: calc(72px + var(--safe-bottom));
+}
+*{
+  box-sizing: border-box;
+}
+input, select, textarea, button{
+  font-size: 16px !important;
+}
+@media (max-width: 768px){
+  body{
+    font-size: 15px;
+  }
+  .container, .app, main, .main, #root{
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+  header, .header{
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    padding: 12px 10px !important;
+  }
+  h1{
+    font-size: 22px !important;
+    line-height: 1.15 !important;
+  }
+  h2{
+    font-size: 18px !important;
+  }
+  h3{
+    font-size: 16px !important;
+  }
+  .tabs, .tab-bar, nav, .nav, .tabs-container{
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 8px !important;
+    padding: 8px 4px !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar, nav::-webkit-scrollbar, .nav::-webkit-scrollbar{
+    display:none;
+  }
+  .tab, .tabs button, nav button, .nav button{
+    flex: 0 0 auto !important;
+    min-height: 44px !important;
+    border-radius: 999px !important;
+    padding: 10px 14px !important;
+    white-space: nowrap !important;
+  }
+  .grid, .cards, .summary-grid, .form-grid, .projection-grid{
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .card, .panel, section, .summary-card{
+    border-radius: 18px !important;
+    padding: 14px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  input, select, textarea{
+    width: 100% !important;
+    min-height: 46px !important;
+    border-radius: 12px !important;
+  }
+  button{
+    min-height: 44px !important;
+    touch-action: manipulation;
+  }
+  table{
+    width: 100% !important;
+    min-width: 680px;
+    border-collapse: collapse;
+  }
+  .table-wrapper, .table-container, .overflow, .scroll-x{
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* fallback: make any direct table scrollable by wrapping visual behavior */
+  table{
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  th, td{
+    padding: 10px 8px !important;
+    font-size: 13px !important;
+    white-space: nowrap;
+  }
+  .value, .amount, .big-number, .metric-value{
+    font-size: clamp(22px, 7vw, 36px) !important;
+    line-height: 1.1 !important;
+    word-break: break-word;
+  }
+  .desktop-only{
+    display: none !important;
+  }
+}
+@media (min-width: 769px){
+  body{
+    padding-bottom: 0;
+  }
+}
+
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useMemo } = React;
+
+// ─────────────────────────────────────────────────
+// CONSTANTES
+// ─────────────────────────────────────────────────
+const SK = 'retraite_v4';
+const MOIS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const TODAY = new Date();
+const NOW_Y = TODAY.getFullYear();
+const NOW_M = TODAY.getMonth();
+const PREV = new Date(TODAY.getFullYear(), TODAY.getMonth()-1, 1);
+const PREV_Y = PREV.getFullYear();
+const PREV_M = PREV.getMonth();
+// Cotisations REC démarrent avril 2026
+const REF_Y = 2026, REF_M = 3;
+
+// ─────────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────────
+const S = {
+  app: {maxWidth:900,margin:'0 auto',padding:'16px 16px 80px'},
+  header: {background:'linear-gradient(135deg,#0d1829 0%,#0a1520 100%)',borderRadius:16,padding:'20px 24px',marginBottom:16,border:'1px solid #1e3a5f',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12},
+  headerLeft: {},
+  eyebrow: {fontSize:10,letterSpacing:'0.15em',textTransform:'uppercase',color:'#4a90d9',marginBottom:4,fontWeight:600},
+  h1: {fontSize:22,fontWeight:700,color:'#e2e8f0',lineHeight:1.2},
+  liveBox: {textAlign:'right'},
+  liveLbl: {fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'#64748b'},
+  liveVal: {fontSize:20,fontWeight:700,color:'#38bdf8',fontVariantNumeric:'tabular-nums'},
+  liveSub: {fontSize:11,color:'#4a90d9',marginTop:2},
+  savedBadge: {fontSize:10,color:'#22c55e',marginTop:4,display:'flex',alignItems:'center',gap:4},
+
+  tabs: {display:'flex',background:'#0d1829',borderRadius:12,padding:4,marginBottom:16,gap:4,border:'1px solid #1e3a5f',overflowX:'auto'},
+  tab: (active,color='#38bdf8')=>({
+    flex:1,minWidth:60,padding:'8px 12px',borderRadius:8,border:'none',cursor:'pointer',
+    fontSize:11,fontWeight:active?700:500,
+    background:active?color+'22':'transparent',
+    color:active?color:'#64748b',
+    transition:'all .15s',whiteSpace:'nowrap',
+  }),
+
+  card: {background:'#0d1829',borderRadius:12,padding:'16px',marginBottom:12,border:'1px solid #1e3a5f'},
+  cardTitle: {fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',color:'#4a90d9',marginBottom:12,fontWeight:600,display:'flex',alignItems:'center',gap:6},
+  dot: (c)=>({width:6,height:6,borderRadius:'50%',background:c,flexShrink:0}),
+
+  resultBanner: (c)=>({background:`linear-gradient(135deg,${c}18 0%,${c}08 100%)`,borderRadius:12,padding:'16px 20px',marginBottom:12,border:`1px solid ${c}30`,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}),
+  rLbl: {fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'#64748b',marginBottom:4},
+  rVal: (c)=>({fontSize:20,fontWeight:700,color:c,fontVariantNumeric:'tabular-nums'}),
+
+  label: {display:'block',fontSize:10,letterSpacing:'0.1em',textTransform:'uppercase',color:'#64748b',marginBottom:5,fontWeight:500},
+  input: {width:'100%',background:'#060d18',border:'1px solid #1e3a5f',borderRadius:8,color:'#e2e8f0',fontSize:14,fontWeight:500,padding:'10px 12px',outline:'none'},
+  select: {width:'100%',background:'#060d18',border:'1px solid #1e3a5f',borderRadius:8,color:'#e2e8f0',fontSize:14,fontWeight:500,padding:'10px 12px',outline:'none'},
+  field: {marginBottom:14},
+
+  rangeWrap: {marginTop:4},
+  rangeRow: {display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:4},
+  rangeVal: (c)=>({fontSize:16,fontWeight:700,color:c}),
+  range: {width:'100%',accentColor:'#38bdf8',cursor:'pointer'},
+
+  drRow: {display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #1e3a5f',fontSize:13},
+  drLbl: {color:'#64748b'},
+  drVal: {fontWeight:600,fontVariantNumeric:'tabular-nums'},
+
+  table: {width:'100%',borderCollapse:'collapse',fontSize:12},
+  th: {fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#64748b',padding:'6px 8px',textAlign:'left',borderBottom:'2px solid #1e3a5f'},
+  td: {padding:'6px 8px',borderBottom:'1px solid #1e3a5f',verticalAlign:'middle'},
+  tinput: {background:'#060d18',border:'1px solid #1e3a5f',borderRadius:6,color:'#e2e8f0',fontSize:12,padding:'4px 8px',width:'100%',outline:'none'},
+  tselect: {background:'#060d18',border:'1px solid #1e3a5f',borderRadius:6,color:'#e2e8f0',fontSize:11,padding:'4px 6px',outline:'none'},
+
+  btn: (c)=>({display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',borderRadius:8,border:'none',cursor:'pointer',fontSize:12,fontWeight:700,background:c+'22',color:c,transition:'all .15s'}),
+  btnSm: (c)=>({display:'inline-flex',alignItems:'center',gap:4,padding:'5px 10px',borderRadius:6,border:`1px solid ${c}40`,cursor:'pointer',fontSize:11,fontWeight:600,background:'transparent',color:c}),
+  btnDel: {background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:16,padding:'2px 6px'},
+
+  navRow: {display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:20,flexWrap:'wrap',gap:8},
+  grid2: {display:'grid',gridTemplateColumns:'1fr 1fr',gap:12},
+
+  ibox: {background:'#0a1520',borderLeft:'3px solid #1e3a5f',padding:'8px 12px',fontSize:11,color:'#64748b',borderRadius:'0 6px 6px 0',lineHeight:1.6,marginBottom:10},
+
+  chart: {display:'flex',alignItems:'flex-end',gap:2,height:120,padding:'0 2px',marginTop:8},
+  bar: (h,c,op)=>({flex:1,height:h,background:c,opacity:op,borderRadius:'2px 2px 0 0',minHeight:2,transition:'height .4s cubic-bezier(.4,0,.2,1)'}),
+
+  scGrid: {display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginTop:8},
+  scBox: (c)=>({background:c+'10',border:`1px solid ${c}25`,borderRadius:8,padding:'12px',textAlign:'center'}),
+  scLbl: {fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#64748b',marginBottom:4},
+  scCap: (c)=>({fontSize:15,fontWeight:700,color:c,fontVariantNumeric:'tabular-nums'}),
+  scPen: {fontSize:10,color:'#64748b',marginTop:2},
+
+  sumRow: {display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid #1e3a5f'},
+  sumLbl: {color:'#64748b'},
+
+  toast: (show)=>({
+    position:'fixed',bottom:24,left:'50%',transform:`translateX(-50%) translateY(${show?0:8}px)`,
+    background:'#0d1829',color:'#e2e8f0',border:'1px solid #1e3a5f',
+    fontSize:12,fontWeight:600,padding:'10px 20px',borderRadius:8,
+    opacity:show?1:0,transition:'all .25s',pointerEvents:'none',zIndex:9999,whiteSpace:'nowrap',
+  }),
+};
+
+// ─────────────────────────────────────────────────
+// FINANCE
+// ─────────────────────────────────────────────────
+const fvLump = (pv,r,t) => t<=0 ? pv : pv*Math.pow(1+r,t);
+const fvAnnuity = (pmt,r,freq,years) => {
+  if(!pmt||years<=0) return 0;
+  if(r===0) return pmt*freq*years;
+  const rp=r/freq, n=freq*years;
+  return pmt*(Math.pow(1+rp,n)-1)/rp;
+};
+const isPast = (y,m) => y<NOW_Y || (y===NOW_Y && m<=NOW_M);
+const isNow  = (y,m) => y===NOW_Y && m===NOW_M;
+const monthIndex = (y,m) => y*12+m;
+const clampLastEncaisse = (y,m) => {
+  const max = monthIndex(NOW_Y,NOW_M);
+  const min = monthIndex(REF_Y,REF_M);
+  const v = Math.min(Math.max(monthIndex(y,m),min),max);
+  return {y:Math.floor(v/12),m:v%12};
+};
+
+const fmt = n => {
+  if(n===null||n===undefined||isNaN(n)) return '—';
+  if(Math.abs(n)>=1e6) return (n/1e6).toFixed(2).replace('.',',')+' M MAD';
+  return Math.round(n).toLocaleString('fr-FR')+' MAD';
+};
+const fmtS = n => {
+  if(!n&&n!==0) return '—';
+  if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+'M';
+  if(Math.abs(n)>=1e3) return Math.round(n/1e3)+'k';
+  return Math.round(n)+'';
+};
+
+// ─────────────────────────────────────────────────
+// GÉNÈRE ROWS REC
+// ─────────────────────────────────────────────────
+function genRcRows(retY, defCotis, defExcep, existing={}) {
+  const rows=[];
+  let y=REF_Y, m=REF_M;
+  while(y<retY) {
+    const key=`${y}-${m}`;
+    const past=isPast(y,m);
+    rows.push(existing[key] || {
+      y,m,
+      cotis: past ? 10400 : defCotis,
+      excep: past ? 0 : (m===0 ? defExcep : 0),
+      pastLocked: past,
+    });
+    m++; if(m===12){m=0;y++;}
+  }
+  return rows;
+}
+
+// ─────────────────────────────────────────────────
+// CALCUL REC
+// ─────────────────────────────────────────────────
+function calcRc(rcRows, rcR, retY) {
+  const rm=rcR/12;
+  let pastCVF=0,futCVF=0,pastEVF=0,futEVF=0;
+  let pastCBrut=0,futCBrut=0;
+  rcRows.forEach(r=>{
+    const yl=(retY-r.y)-r.m/12;
+    const ml=Math.round(yl*12);
+    const fM=Math.pow(1+rm,Math.max(0,ml));
+    const fY=Math.pow(1+rcR,Math.max(0,yl));
+    if(r.pastLocked){pastCVF+=r.cotis*fM;pastEVF+=r.excep*fY;pastCBrut+=r.cotis;}
+    else{futCVF+=r.cotis*fM;futEVF+=r.excep*fY;futCBrut+=r.cotis;}
+  });
+  return {pastCVF,futCVF,pastEVF,futEVF,pastCBrut,futCBrut};
+}
+
+
+function calcRcNow(rcCap, rcRows, rcR) {
+  const rm=rcR/12;
+  const startMi=monthIndex(REF_Y,REF_M);
+  const nowMi=monthIndex(NOW_Y,NOW_M);
+  const monthsSinceArrete=Math.max(0,nowMi-startMi);
+  let capVF=rcCap*Math.pow(1+rm,monthsSinceArrete);
+  let cotisVF=0, excepVF=0, cotisBrut=0, excepBrut=0;
+  rcRows.forEach(r=>{
+    const mi=monthIndex(r.y,r.m);
+    // Épargne actuelle = toutes les cotisations encaissées jusqu'au mois courant inclus.
+    if(mi>nowMi) return;
+    const monthsToNow=Math.max(0,nowMi-mi);
+    cotisVF += (r.cotis||0)*Math.pow(1+rm,monthsToNow);
+    excepVF += (r.excep||0)*Math.pow(1+rm,monthsToNow);
+    cotisBrut += r.cotis||0;
+    excepBrut += r.excep||0;
+  });
+  return {capVF,cotisVF,excepVF,cotisBrut,excepBrut,total:capVF+cotisVF+excepVF};
+}
+
+function calcVersVF(vers,r,retY) {
+  let vf=0;
+  vers.forEach(v=>{
+    if(v.montant<=0) return;
+    const t=(retY-v.year)-v.month/12;
+    if(t>0) vf+=v.montant*Math.pow(1+r,t);
+  });
+  return vf;
+}
+
+function calcCotisEncaisseesNow(pmt,r,freq,lastY,lastM) {
+  if(!pmt||pmt<=0) return {vf:0,brut:0,nb:0};
+  const last=clampLastEncaisse(lastY,lastM);
+  const start=monthIndex(REF_Y,REF_M); // avril 2026, après arrêté 31/03/2026
+  const end=monthIndex(last.y,last.m);
+  const step=Math.max(1,Math.round(12/freq));
+  const rm=r/12;
+  let vf=0, brut=0, nb=0;
+  for(let mi=start; mi<=end; mi+=step){
+    const y=Math.floor(mi/12), m=mi%12;
+    const monthsToNow=Math.max(0,monthIndex(NOW_Y,NOW_M)-mi);
+    vf += pmt*Math.pow(1+rm,monthsToNow);
+    brut += pmt; nb++;
+  }
+  return {vf,brut,nb};
+}
+
+function calcVersNow(vers,r) {
+  const rm=r/12;
+  let vf=0, brut=0;
+  vers.forEach(v=>{
+    if(v.montant<=0) return;
+    const mi=monthIndex(v.year,v.month);
+    if(mi>monthIndex(NOW_Y,NOW_M)) return;
+    const monthsToNow=Math.max(0,monthIndex(NOW_Y,NOW_M)-mi);
+    vf += v.montant*Math.pow(1+rm,monthsToNow);
+    brut += v.montant;
+  });
+  return {vf,brut};
+}
+
+
+function fvRecurring(amount,r,freq,years) {
+  if(!amount || amount<=0 || years<=0 || freq<=0) return 0;
+  const rp=r/freq, n=Math.floor(freq*years);
+  if(n<=0) return 0;
+  if(r===0) return amount*n;
+  return amount*(Math.pow(1+rp,n)-1)/rp;
+}
+
+function pensionTo85(capital, annualRatePct, targetYear, currentAge) {
+  const ageAtRet = (currentAge || 40) + (targetYear - NOW_Y);
+  const yearsPay = Math.max(1, 85 - ageAtRet);
+  const n = Math.max(1, Math.round(yearsPay * 12));
+  const i = ((annualRatePct || 0) / 100) / 12;
+  if (i === 0) return (capital || 0) / n;
+  return (capital || 0) * i / (1 - Math.pow(1 + i, -n));
+}
+
+function calcSim(current, monthly, exceptional, exFreq, ratePct, targetYear, currentAge) {
+  const years=Math.max(0,targetYear - (NOW_Y + NOW_M/12));
+  const r=(ratePct||0)/100;
+  const cap=fvLump(current||0,r,years);
+  const cot=fvRecurring(monthly||0,r,12,years);
+  const ex=fvRecurring(exceptional||0,r,parseInt(exFreq)||1,years);
+  const total=cap+cot+ex;
+  return {cap,cot,ex,total,pen:pensionTo85(total, ratePct||0, targetYear, currentAge)};
+}
+
+function getAnnualSeries(state) {
+  const {retY,rcR,atlR,ucR,rcRows,atlVers,ucVers,atlCotis,atlFreq,ucCotis,ucFreq,rcCap,atlCap,ucCap} = state;
+  const rm=rcR/12;
+  const years=[],rcV=[],atlV=[],ucV=[];
+  for(let y=REF_Y;y<=retY;y++){
+    const t=y-REF_Y;
+    // RC
+    let rv=fvLump(rcCap,rcR,t);
+    rcRows.forEach(r=>{
+      if(r.y>y) return;
+      const ml=Math.max(0,(y-r.y)*12-r.m);
+      rv+=r.cotis*Math.pow(1+rm,ml);
+      if(r.excep>0){const te=(y-r.y)-r.m/12;if(te>0)rv+=r.excep*Math.pow(1+rcR,te);}
+    });
+    // ATL
+    let av=fvLump(atlCap,atlR,t)+fvAnnuity(atlCotis,atlR,atlFreq,t);
+    atlVers.forEach(v=>{if(v.montant>0&&v.year<=y){const te=(y-v.year)-v.month/12;if(te>0)av+=v.montant*Math.pow(1+atlR,te);}});
+    // UC
+    let uv=fvLump(ucCap,ucR,t)+fvAnnuity(ucCotis,ucR,ucFreq,t);
+    ucVers.forEach(v=>{if(v.montant>0&&v.year<=y){const te=(y-v.year)-v.month/12;if(te>0)uv+=v.montant*Math.pow(1+ucR,te);}});
+    years.push(y); rcV.push(Math.max(0,rv)); atlV.push(Math.max(0,av)); ucV.push(Math.max(0,uv));
+  }
+  return {years,rcV,atlV,ucV};
+}
+
+// ─────────────────────────────────────────────────
+// COMPOSANTS UI
+// ─────────────────────────────────────────────────
+function Range({id,min,max,step,value,onChange,color='#38bdf8',label}) {
+  return (
+    <div style={S.rangeWrap}>
+      <div style={S.rangeRow}>
+        <span style={{fontSize:11,color:'#64748b'}}>{label}</span>
+        <span style={S.rangeVal(color)}>{parseFloat(value).toFixed(2)}%</span>
+      </div>
+      <input type="range" style={{...S.range,accentColor:color}} min={min} max={max} step={step} value={value}
+        onChange={e=>onChange(parseFloat(e.target.value))} />
+      <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#475569',marginTop:2}}>
+        <span>{min}%</span><span>{max}%</span>
+      </div>
+    </div>
+  );
+}
+
+function MiniChart({series,color}) {
+  const max=Math.max(...series.map(s=>s.val),1);
+  return (
+    <div style={S.chart}>
+      {series.map((s,i)=>(
+        <div key={i} style={S.bar((s.val/max)*110,color,i===series.length-1?1:.4)} title={fmtS(s.val)} />
+      ))}
+    </div>
+  );
+}
+
+function DecompRow({label,val,color,bold}) {
+  return (
+    <div style={{...S.drRow,borderBottom:bold?'none':'1px solid #1e3a5f',paddingTop:bold?10:8}}>
+      <span style={{...S.drLbl,fontWeight:bold?700:'normal',color:bold?'#e2e8f0':'#64748b'}}>{label}</span>
+      <span style={{...S.drVal,color:color||'#e2e8f0',fontSize:bold?15:13}}>{val}</span>
+    </div>
+  );
+}
+
+function VersTable({vers,color,onAdd,onRemove,retY}) {
+  const [newM,setNewM]=useState(0);
+  const [newY,setNewY]=useState(NOW_Y);
+  const [newAmt,setNewAmt]=useState('');
+  const years=[];
+  for(let y=NOW_Y;y<retY;y++) years.push(y);
+
+  const add=()=>{
+    const amt=parseFloat(newAmt);
+    if(!amt||amt<=0) return;
+    onAdd({id:Date.now(),month:newM,year:newY,montant:amt});
+    setNewAmt('');
+  };
+
+  return (
+    <div>
+      {vers.length===0
+        ? <div style={{fontSize:12,color:'#475569',padding:'8px 0'}}>Aucun versement — ajoutez ci-dessous</div>
+        : <table style={S.table}>
+            <thead><tr>
+              <th style={S.th}>Mois</th>
+              <th style={S.th}>Année</th>
+              <th style={{...S.th,textAlign:'right'}}>Montant</th>
+              <th style={S.th}></th>
+            </tr></thead>
+            <tbody>
+              {vers.map(v=>(
+                <tr key={v.id}>
+                  <td style={S.td}><span style={{fontWeight:500}}>{MOIS[v.month]}</span></td>
+                  <td style={S.td}>{v.year}</td>
+                  <td style={{...S.td,textAlign:'right',fontWeight:600,color}}>{fmt(v.montant)}</td>
+                  <td style={S.td}><button style={S.btnDel} onClick={()=>onRemove(v.id)}>×</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+      }
+      <div style={{display:'flex',gap:6,marginTop:10,flexWrap:'wrap',alignItems:'flex-end'}}>
+        <div>
+          <div style={S.label}>Mois</div>
+          <select style={{...S.tselect,width:70}} value={newM} onChange={e=>setNewM(parseInt(e.target.value))}>
+            {MOIS.map((mn,mi)=><option key={mi} value={mi}>{mn}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={S.label}>Année</div>
+          <select style={{...S.tselect,width:80}} value={newY} onChange={e=>setNewY(parseInt(e.target.value))}>
+            {years.map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <div style={{flex:1,minWidth:120}}>
+          <div style={S.label}>Montant (MAD)</div>
+          <input style={S.tinput} type="number" placeholder="Ex: 100 000" value={newAmt}
+            onChange={e=>setNewAmt(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&add()} />
+        </div>
+        <button style={{...S.btnSm(color),alignSelf:'flex-end',padding:'7px 12px'}} onClick={add}>+ Ajouter</button>
+      </div>
+      {vers.length>0 && (
+        <div style={{marginTop:8,fontSize:11,color:'#64748b'}}>
+          Total brut : <b style={{color}}>{fmt(vers.reduce((s,v)=>s+v.montant,0))}</b>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────
+// APP
+// ─────────────────────────────────────────────────
+const TABS = [
+  {id:'horizon',  label:'Horizon',  color:'#64748b'},
+  {id:'rec',   label:'REC',   color:'#f97316'},
+  {id:'atlanta',  label:'ATL',  color:'#22c55e'},
+  {id:'uc',       label:'UC',       color:'#38bdf8'},
+  {id:'simulation',label:'Simulation',color:'#94a3b8'},
+  {id:'projection',label:'Projection',color:'#a78bfa'},
+];
+
+const DEFAULT_STATE = {
+  retYear: 2035,
+  currentAge: 40,
+  rcCap: 689000,   rcRdmt: 1,    rcDefCotis: 10400, rcDefExcep: 0,
+  atlCap: 721400,  atlRdmt: 3.6, atlCotis: 0, atlFreq: 12, atlLastM: PREV_M, atlLastY: PREV_Y,
+  ucCap: 0,        ucRdmt: 7,    ucCotis: 0,  ucFreq: 12, ucLastM: PREV_M, ucLastY: PREV_Y,
+  atlVers: [], ucVers: [],
+  rcRows: [],
+  sim: {
+    rc:{monthly:10400, exceptional:0, exFreq:1, rate:null},
+    atl:{monthly:0, exceptional:0, exFreq:1, rate:null},
+    uc:{monthly:0, exceptional:0, exFreq:1, rate:null}
+  },
+};
+
+function load() {
+  try {
+    const raw = localStorage.getItem(SK);
+    if(raw) return JSON.parse(raw);
+  } catch(e) {}
+  return null;
+}
+
+function App() {
+  const [tab, setTab] = useState('horizon');
+  const [toast, setToast] = useState({show:false,msg:''});
+  const [savedAt, setSavedAt] = useState('');
+
+  // State
+  const saved = load();
+  const init = saved || DEFAULT_STATE;
+
+  const [retYear,  setRetYear]  = useState(init.retYear);
+  const [currentAge,setCurrentAge]= useState(init.currentAge ?? 40);
+  const [rcCap,    setRcCap]    = useState(init.rcCap);
+  const [rcRdmt,   setRcRdmt]   = useState(init.rcRdmt);
+  const [rcDefCotis,setRcDefCotis]=useState(init.rcDefCotis);
+  const [rcDefExcep,setRcDefExcep]=useState(init.rcDefExcep);
+  const [atlCap,   setAtlCap]   = useState(init.atlCap);
+  const [atlRdmt,  setAtlRdmt]  = useState(init.atlRdmt);
+  const [atlCotis, setAtlCotis] = useState(init.atlCotis);
+  const [atlFreq,  setAtlFreq]  = useState(init.atlFreq);
+  const [atlLastM, setAtlLastM] = useState(init.atlLastM ?? PREV_M);
+  const [atlLastY, setAtlLastY] = useState(init.atlLastY ?? PREV_Y);
+  const [atlVers,  setAtlVers]  = useState(init.atlVers||[]);
+  const [ucCap,    setUcCap]    = useState(init.ucCap);
+  const [ucRdmt,   setUcRdmt]   = useState(init.ucRdmt);
+  const [ucCotis,  setUcCotis]  = useState(init.ucCotis);
+  const [ucFreq,   setUcFreq]   = useState(init.ucFreq);
+  const [ucLastM,  setUcLastM]  = useState(init.ucLastM ?? PREV_M);
+  const [ucLastY,  setUcLastY]  = useState(init.ucLastY ?? PREV_Y);
+  const [ucVers,   setUcVers]   = useState(init.ucVers||[]);
+  const [rcRows,   setRcRows]   = useState(()=>{
+    if(init.rcRows && init.rcRows.length) {
+      const ex={};
+      init.rcRows.forEach(r=>ex[`${r.y}-${r.m}`]=r);
+      return genRcRows(init.retYear,init.rcDefCotis,init.rcDefExcep,ex);
+    }
+    return genRcRows(init.retYear,init.rcDefCotis,init.rcDefExcep);
+  });
+
+  const [sim, setSim] = useState(init.sim || DEFAULT_STATE.sim);
+  const updateSim = (key, field, val) => setSim(prev=>({
+    ...prev,
+    [key]: {...(prev[key]||{}), [field]: val}
+  }));
+
+  // Rebuild rcRows when retYear / defaults change
+  const rebuildRows = useCallback((rY,dc,de,existing)=>{
+    const ex={};
+    existing.forEach(r=>ex[`${r.y}-${r.m}`]=r);
+    setRcRows(genRcRows(rY,dc,de,ex));
+  },[]);
+
+  // Auto-save
+  useEffect(()=>{
+    const state={
+      retYear,currentAge,rcCap,rcRdmt,rcDefCotis,rcDefExcep,
+      atlCap,atlRdmt,atlCotis,atlFreq,atlLastM,atlLastY,atlVers,
+      ucCap,ucRdmt,ucCotis,ucFreq,ucLastM,ucLastY,ucVers,rcRows,sim
+    };
+    try {
+      localStorage.setItem(SK,JSON.stringify(state));
+      const now=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+      setSavedAt('Sauvegardé à '+now);
+    } catch(e){}
+  },[retYear,currentAge,rcCap,rcRdmt,rcDefCotis,rcDefExcep,atlCap,atlRdmt,atlCotis,atlFreq,atlLastM,atlLastY,atlVers,ucCap,ucRdmt,ucCotis,ucFreq,ucLastM,ucLastY,ucVers,rcRows,sim]);
+
+  const showToast = msg => { setToast({show:true,msg}); setTimeout(()=>setToast({show:false,msg:''}),2000); };
+
+  // Calculs
+  const rcR=rcRdmt/100, atlR=atlRdmt/100, ucR=ucRdmt/100;
+  const tBase=Math.max(0,retYear-REF_Y);
+  const {pastCVF,futCVF,pastEVF,futEVF,pastCBrut,futCBrut}=calcRc(rcRows,rcR,retYear);
+  const rcInitVF=fvLump(rcCap,rcR,tBase);
+  const rcTotal=rcInitVF+pastCVF+futCVF+pastEVF+futEVF;
+  const rcPen=pensionTo85(rcTotal, rcRdmt, retYear, currentAge);
+  const rcNow=calcRcNow(rcCap,rcRows,rcR);
+  const rcCurrent=rcNow.total;
+
+  const atlInitVF=fvLump(atlCap,atlR,tBase);
+  const atlCotisVF=fvAnnuity(atlCotis,atlR,atlFreq,tBase);
+  const atlExcepVF=calcVersVF(atlVers,atlR,retYear);
+  const atlTotal=atlInitVF+atlCotisVF+atlExcepVF;
+  const atlPen=pensionTo85(atlTotal, atlRdmt, retYear, currentAge);
+  const atlCotisNow=calcCotisEncaisseesNow(atlCotis,atlR,atlFreq,atlLastY,atlLastM);
+  const atlVersNow=calcVersNow(atlVers,atlR);
+  const atlCurrent=atlCap+atlCotisNow.vf+atlVersNow.vf;
+
+  const ucInitVF=fvLump(ucCap,ucR,tBase);
+  const ucCotisVF=fvAnnuity(ucCotis,ucR,ucFreq,tBase);
+  const ucExcepVF=calcVersVF(ucVers,ucR,retYear);
+  const ucTotal=ucInitVF+ucCotisVF+ucExcepVF;
+  const ucPen=pensionTo85(ucTotal, ucRdmt, retYear, currentAge);
+  const ucCotisNow=calcCotisEncaisseesNow(ucCotis,ucR,ucFreq,ucLastY,ucLastM);
+  const ucVersNow=calcVersNow(ucVers,ucR);
+  const ucCurrent=ucCap+ucCotisNow.vf+ucVersNow.vf;
+
+  const totCap=rcTotal+atlTotal+ucTotal;
+  const totCurrent=rcCurrent+atlCurrent+ucCurrent;
+  const totPen=rcPen+atlPen+ucPen;
+
+
+  const simContracts = [
+    {key:'rc', label:'REC', color:'#f97316', current:rcCurrent, baseRate:rcRdmt},
+    {key:'atl', label:'ATL', color:'#22c55e', current:atlCurrent, baseRate:atlRdmt},
+    {key:'uc', label:'ATL UC', color:'#38bdf8', current:ucCurrent, baseRate:ucRdmt},
+  ].map(c=>({
+    ...c,
+    monthly: sim?.[c.key]?.monthly ?? (c.key==='rc'?10400:0),
+    exceptional: sim?.[c.key]?.exceptional ?? 0,
+    exFreq: sim?.[c.key]?.exFreq ?? 1,
+    rate: sim?.[c.key]?.rate ?? c.baseRate,
+  }));
+  const simYears=[2035,2040,2045];
+  const simTotals=simYears.map(y=>simContracts.reduce((sum,c)=>sum+calcSim(c.current,c.monthly,c.exceptional,c.exFreq,c.rate,y,currentAge).total,0));
+  const simPens=simYears.map((y,i)=>simContracts.reduce((sum,c)=>{const r=calcSim(c.current,c.monthly,c.exceptional,c.exFreq,c.rate,y,currentAge);return sum+r.pen;},0));
+
+  const annualSeries=useMemo(()=>getAnnualSeries({retY:retYear,rcR,atlR,ucR,rcRows,atlVers,ucVers,atlCotis,atlFreq,ucCotis,ucFreq,rcCap,atlCap,ucCap}),[retYear,rcR,atlR,ucR,rcRows,atlVers,ucVers,atlCotis,atlFreq,ucCotis,ucFreq,rcCap,atlCap,ucCap]);
+
+  // Handlers versements
+  const addAtlVers = v => setAtlVers(prev=>[...prev,v].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month));
+  const remAtlVers = id => setAtlVers(prev=>prev.filter(v=>v.id!==id));
+  const addUcVers  = v => setUcVers(prev=>[...prev,v].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month));
+  const remUcVers  = id => setUcVers(prev=>prev.filter(v=>v.id!==id));
+
+  // Modif row RC
+  const updateRcRow = (i,field,val) => {
+    setRcRows(prev=>{const n=[...prev];n[i]={...n[i],[field]:val};return n;});
+  };
+
+  const retYearChange = val => {
+    setRetYear(val);
+    rebuildRows(val,rcDefCotis,rcDefExcep,rcRows);
+  };
+  const applyFutureCotis = val => {
+    setRcDefCotis(val);
+    setRcRows(prev=>prev.map(r=>r.pastLocked?r:{...r,cotis:val}));
+  };
+  const applyFutureExcep = val => {
+    setRcDefExcep(val);
+    setRcRows(prev=>prev.map(r=>r.pastLocked?r:{...r,excep:r.m===0?val:r.excep}));
+  };
+
+  const years_left = retYear - NOW_Y;
+
+  // ── RENDER ──
+  const encaisseYears=[];
+  for(let y=REF_Y;y<=NOW_Y;y++) encaisseYears.push(y);
+
+  return (
+    <div style={S.app}>
+
+      {/* HEADER */}
+      <div style={S.header}>
+        <div style={S.headerLeft}>
+          <div style={S.eyebrow}>Planification financière</div>
+          <div style={S.h1}>Simulateur Retraite</div>
+          <div style={{...S.savedBadge}}>
+            <span style={{width:6,height:6,borderRadius:'50%',background:'#22c55e',display:'inline-block'}}></span>
+            {savedAt||'Chargement…'}
+          </div>
+        </div>
+        <div style={S.liveBox}>
+          <div style={S.liveLbl}>Épargne globale actuelle</div>
+          <div style={S.liveVal}>{fmt(totCurrent)}</div>
+          <div style={S.liveSub}>Retraite {fmt(totCap)} · Pension {fmt(totPen)}/mois</div>
+        </div>
+      </div>
+
+      {/* TABS */}
+      <div style={S.tabs}>
+        {TABS.map(t=>(
+          <button key={t.id} style={S.tab(tab===t.id,t.color)} onClick={()=>setTab(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── HORIZON ── */}
+      {tab==='horizon' && (
+        <div className="fade">
+          <div style={S.card}>
+            <div style={S.cardTitle}><span style={S.dot('#64748b')}></span>Date de départ</div>
+            <div style={S.field}>
+              <label style={S.label}>Année de retraite</label>
+              <select style={S.select} value={retYear} onChange={e=>retYearChange(parseInt(e.target.value))}>
+                {[2030,2031,2032,2033,2034,2035,2036,2037,2038,2040,2042,2045].map(y=>(
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{padding:'8px 0'}}>
+              <div style={{fontSize:10,letterSpacing:'0.1em',textTransform:'uppercase',color:'#64748b',marginBottom:4}}>Années restantes</div>
+              <div style={{fontSize:36,fontWeight:700,color:'#f97316'}}>{years_left} ans</div>
+            </div>
+          </div>
+
+          <div style={S.card}>
+            <div style={S.cardTitle}><span style={S.dot('#a78bfa')}></span>Résumé global</div>
+            <div style={S.resultBanner('#a78bfa')}>
+              <div><div style={S.rLbl}>Épargne globale actuelle</div><div style={S.rVal('#c4b5fd')}>{fmt(totCurrent)}</div></div>
+              <div><div style={S.rLbl}>Capital futur retraite</div><div style={S.rVal('#a78bfa')}>{fmt(totCap)}</div></div>
+              <div><div style={S.rLbl}>Pension mensuelle</div><div style={S.rVal('#c4b5fd')}>{fmt(totPen)}/mois</div></div>
+            </div>
+            <DecompRow label="Actuel REC" val={fmt(rcCurrent)} color="#f97316" />
+            <DecompRow label="Actuel ATL" val={fmt(atlCurrent)} color="#22c55e" />
+            <DecompRow label="Actuel ATL UC" val={fmt(ucCurrent)} color="#38bdf8" />
+            <DecompRow label="Pension REC" val={fmt(rcPen)+'/mois'} color="#f97316" />
+            <DecompRow label="Pension ATL" val={fmt(atlPen)+'/mois'} color="#22c55e" />
+            <DecompRow label="Pension ATL UC" val={fmt(ucPen)+'/mois'} color="#38bdf8" />
+          </div>
+          <div style={S.card}>
+            <div style={S.cardTitle}><span style={S.dot('#64748b')}></span>Pension : consommation du capital jusqu’à 85 ans</div>
+            <div style={S.field}>
+              <label style={S.label}>Âge actuel</label>
+              <input style={S.input} type="number" value={currentAge} onChange={e=>setCurrentAge(parseInt(e.target.value)||40)} />
+            </div>
+            <div style={{...S.ibox,marginTop:12}}>
+              La pension mensuelle est calculée comme un décaissement progressif du capital entre l’année de retraite et l’âge de 85 ans, avec rendement pendant la phase de retrait.
+            </div>
+          </div>
+          <div style={S.navRow}>
+            <div></div>
+            <button style={S.btn('#f97316')} onClick={()=>setTab('rec')}>Suivant — REC →</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── REC ── */}
+      {tab==='rec' && (
+        <div className="fade">
+          <div style={S.resultBanner('#f97316')}>
+            <div><div style={S.rLbl}>Épargne actuelle estimée</div><div style={S.rVal('#fbbf24')}>{fmt(rcCurrent)}</div></div>
+            <div><div style={S.rLbl}>Capital REC à la retraite</div><div style={S.rVal('#f97316')}>{fmt(rcTotal)}</div></div>
+            <div><div style={S.rLbl}>Rente mensuelle</div><div style={S.rVal('#fbbf24')}>{fmt(rcPen)}/mois</div></div>
+          </div>
+
+          <div style={S.grid2}>
+            <div>
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#f97316')}></span>Capital & rendement</div>
+                <div style={S.field}>
+                  <label style={S.label}>Valeur au 31 mars 2026 (MAD)</label>
+                  <input style={S.input} type="number" value={rcCap} onChange={e=>setRcCap(parseFloat(e.target.value)||0)} />
+                </div>
+                <Range min={0} max={12} step={0.25} value={rcRdmt} onChange={setRcRdmt} color="#f97316" label="Rendement annuel" />
+              </div>
+
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#f97316')}></span>Simulation future</div>
+                <div style={{...S.ibox}}>Les mois passés ne sont modifiables que ligne par ligne dans le tableau.</div>
+                <div style={S.field}>
+                  <label style={S.label}>Cotisation mensuelle future (MAD)</label>
+                  <input style={S.input} type="number" value={rcDefCotis} onChange={e=>applyFutureCotis(parseFloat(e.target.value)||0)} />
+                </div>
+                <div style={S.field}>
+                  <label style={S.label}>Versement exceptionnel annuel futur (MAD)</label>
+                  <input style={S.input} type="number" value={rcDefExcep} onChange={e=>applyFutureExcep(parseFloat(e.target.value)||0)} />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#f97316')}></span>Décomposition</div>
+                <DecompRow label="Épargne actuelle estimée" val={fmt(rcCurrent)} color="#f97316" bold />
+                <DecompRow label="Capital arrêté capitalisé à aujourd’hui" val={fmt(rcNow.capVF)} />
+                <DecompRow label="Cotisations encaissées à ce jour" val={fmt(rcNow.cotisVF)} />
+                <DecompRow label="Vers. excep. encaissés à ce jour" val={fmt(rcNow.excepVF)} />
+                <DecompRow label="Capital initial capitalisé" val={fmt(rcInitVF)} />
+                <DecompRow label="Cotisations passées (VF)" val={fmt(pastCVF)} />
+                <DecompRow label="Cotisations futures (VF)" val={fmt(futCVF)} />
+                <DecompRow label="Vers. excep. passés (VF)" val={fmt(pastEVF)} />
+                <DecompRow label="Vers. excep. futurs (VF)" val={fmt(futEVF)} />
+                <DecompRow label="TOTAL" val={fmt(rcTotal)} color="#f97316" bold />
+                <MiniChart series={annualSeries.years.map((y,i)=>({y,val:annualSeries.rcV[i]}))} color="#f97316" />
+              </div>
+            </div>
+          </div>
+
+          <div style={S.card}>
+            <div style={S.cardTitle}><span style={S.dot('#f97316')}></span>Tableau mensuel détaillé</div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#64748b',marginBottom:8,flexWrap:'wrap',gap:4}}>
+              <span>Passés : <b>{rcRows.filter(r=>r.pastLocked).length}</b> mois · Futurs : <b>{rcRows.filter(r=>!r.pastLocked).length}</b> mois</span>
+              <span>Total brut : <b style={{color:'#f97316'}}>{fmt(rcRows.reduce((s,r)=>s+r.cotis+r.excep,0))}</b></span>
+            </div>
+            <div style={{maxHeight:280,overflowY:'auto'}}>
+              <table style={S.table}>
+                <thead><tr>
+                  <th style={S.th}>Mois</th>
+                  <th style={S.th}>Cotisation (MAD)</th>
+                  <th style={S.th}>Vers. excep. (MAD)</th>
+                </tr></thead>
+                <tbody>
+                  {rcRows.map((r,i)=>(
+                    <tr key={`${r.y}-${r.m}`} style={{background:isNow(r.y,r.m)?'#f9731608':r.pastLocked?'#ffffff04':'transparent'}}>
+                      <td style={S.td}>
+                        <span style={{fontWeight:500,color:r.pastLocked?'#475569':'#e2e8f0'}}>
+                          {MOIS[r.m]} {r.y}
+                        </span>
+                        {isNow(r.y,r.m) && <span style={{fontSize:9,color:'#f97316',marginLeft:6,fontWeight:700}}>↗</span>}
+                        {r.pastLocked && !isNow(r.y,r.m) && <span style={{fontSize:9,color:'#475569',marginLeft:6}}>passé</span>}
+                      </td>
+                      <td style={S.td}>
+                        <input style={{...S.tinput,color:r.pastLocked?'#475569':'#e2e8f0'}} type="number" value={r.cotis}
+                          onChange={e=>updateRcRow(i,'cotis',parseFloat(e.target.value)||0)} />
+                      </td>
+                      <td style={S.td}>
+                        <input style={{...S.tinput,color:r.pastLocked?'#475569':'#e2e8f0'}} type="number" value={r.excep}
+                          onChange={e=>updateRcRow(i,'excep',parseFloat(e.target.value)||0)} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style={S.navRow}>
+            <button style={S.btn('#64748b')} onClick={()=>setTab('horizon')}>← Horizon</button>
+            <button style={S.btn('#22c55e')} onClick={()=>setTab('atlanta')}>Suivant — ATL →</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── ATLANTA ── */}
+      {tab==='atlanta' && (
+        <div className="fade">
+          <div style={S.resultBanner('#22c55e')}>
+            <div><div style={S.rLbl}>Épargne actuelle estimée</div><div style={S.rVal('#4ade80')}>{fmt(atlCurrent)}</div></div>
+            <div><div style={S.rLbl}>Capital ATL à la retraite</div><div style={S.rVal('#22c55e')}>{fmt(atlTotal)}</div></div>
+            <div><div style={S.rLbl}>Rente mensuelle</div><div style={S.rVal('#4ade80')}>{fmt(atlPen)}/mois</div></div>
+          </div>
+
+          <div style={S.grid2}>
+            <div>
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#22c55e')}></span>Capital & rendement</div>
+                <div style={S.field}>
+                  <label style={S.label}>Valeur à l’arrêté / capital de départ (MAD)</label>
+                  <input style={S.input} type="number" value={atlCap} onChange={e=>setAtlCap(parseFloat(e.target.value)||0)} />
+                </div>
+                <Range min={0} max={12} step={0.25} value={atlRdmt} onChange={setAtlRdmt} color="#22c55e" label="Rendement annuel" />
+              </div>
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#22c55e')}></span>Cotisation périodique</div>
+                <div style={S.field}>
+                  <label style={S.label}>Montant par versement (MAD)</label>
+                  <input style={S.input} type="number" value={atlCotis} onChange={e=>setAtlCotis(parseFloat(e.target.value)||0)} />
+                </div>
+                <div style={S.field}>
+                  <label style={S.label}>Fréquence</label>
+                  <select style={S.select} value={atlFreq} onChange={e=>setAtlFreq(parseInt(e.target.value))}>
+                    <option value={12}>Mensuelle (12×/an)</option>
+                    <option value={4}>Trimestrielle (4×/an)</option>
+                    <option value={2}>Semestrielle (2×/an)</option>
+                    <option value={1}>Annuelle (1×/an)</option>
+                  </select>
+                </div>
+                <div style={S.field}>
+                  <label style={S.label}>Dernier mois encaissé</label>
+                  <div style={{display:'flex',gap:8}}>
+                    <select style={S.select} value={atlLastM} onChange={e=>setAtlLastM(parseInt(e.target.value))}>
+                      {MOIS.map((mn,mi)=><option key={mi} value={mi}>{mn}</option>)}
+                    </select>
+                    <select style={S.select} value={atlLastY} onChange={e=>setAtlLastY(parseInt(e.target.value))}>
+                      {encaisseYears.map(y=><option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{fontSize:11,color:'#64748b'}}>
+                  Effort annuel : <b style={{color:'#22c55e'}}>{fmt(atlCotis*atlFreq)}</b><br/>
+                  Déjà encaissé : <b style={{color:'#22c55e'}}>{fmt(atlCotisNow.brut)}</b> ({atlCotisNow.nb} versement{atlCotisNow.nb>1?'s':''})
+                </div>
+              </div>
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#22c55e')}></span>Versements exceptionnels</div>
+                <VersTable vers={atlVers} color="#22c55e" onAdd={addAtlVers} onRemove={remAtlVers} retY={retYear} />
+              </div>
+            </div>
+            <div>
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#22c55e')}></span>Décomposition</div>
+                <DecompRow label="Épargne actuelle estimée" val={fmt(atlCurrent)} color="#22c55e" bold />
+                <DecompRow label="Capital de départ" val={fmt(atlCap)} />
+                <DecompRow label="Cotisations encaissées capitalisées" val={fmt(atlCotisNow.vf)} />
+                <DecompRow label="Versements exceptionnels passés" val={fmt(atlVersNow.vf)} />
+                <DecompRow label="Capital initial capitalisé à la retraite" val={fmt(atlInitVF)} />
+                <DecompRow label="Cotisations périodiques (VF)" val={fmt(atlCotisVF)} />
+                <DecompRow label="Versements exceptionnels (VF)" val={fmt(atlExcepVF)} />
+                <DecompRow label="TOTAL" val={fmt(atlTotal)} color="#22c55e" bold />
+                <MiniChart series={annualSeries.years.map((y,i)=>({y,val:annualSeries.atlV[i]}))} color="#22c55e" />
+              </div>
+            </div>
+          </div>
+          <div style={S.navRow}>
+            <button style={S.btn('#64748b')} onClick={()=>setTab('rec')}>← REC</button>
+            <button style={S.btn('#38bdf8')} onClick={()=>setTab('uc')}>Suivant — ATL UC →</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── UC ── */}
+      {tab==='uc' && (
+        <div className="fade">
+          <div style={S.resultBanner('#38bdf8')}>
+            <div><div style={S.rLbl}>Épargne actuelle estimée</div><div style={S.rVal('#7dd3fc')}>{fmt(ucCurrent)}</div></div>
+            <div><div style={S.rLbl}>Capital UC à la retraite</div><div style={S.rVal('#38bdf8')}>{fmt(ucTotal)}</div></div>
+            <div><div style={S.rLbl}>Rente mensuelle</div><div style={S.rVal('#7dd3fc')}>{fmt(ucPen)}/mois</div></div>
+          </div>
+
+          <div style={S.grid2}>
+            <div>
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#38bdf8')}></span>Capital & rendement</div>
+                <div style={S.field}>
+                  <label style={S.label}>Valeur à l’arrêté / capital de départ (MAD)</label>
+                  <input style={S.input} type="number" value={ucCap} onChange={e=>setUcCap(parseFloat(e.target.value)||0)} />
+                </div>
+                <Range min={0} max={15} step={0.25} value={ucRdmt} onChange={setUcRdmt} color="#38bdf8" label="Rendement annuel (UC)" />
+              </div>
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#38bdf8')}></span>Cotisation périodique</div>
+                <div style={S.field}>
+                  <label style={S.label}>Montant par versement (MAD)</label>
+                  <input style={S.input} type="number" value={ucCotis} onChange={e=>setUcCotis(parseFloat(e.target.value)||0)} />
+                </div>
+                <div style={S.field}>
+                  <label style={S.label}>Fréquence</label>
+                  <select style={S.select} value={ucFreq} onChange={e=>setUcFreq(parseInt(e.target.value))}>
+                    <option value={12}>Mensuelle (12×/an)</option>
+                    <option value={4}>Trimestrielle (4×/an)</option>
+                    <option value={2}>Semestrielle (2×/an)</option>
+                    <option value={1}>Annuelle (1×/an)</option>
+                  </select>
+                </div>
+                <div style={S.field}>
+                  <label style={S.label}>Dernier mois encaissé</label>
+                  <div style={{display:'flex',gap:8}}>
+                    <select style={S.select} value={ucLastM} onChange={e=>setUcLastM(parseInt(e.target.value))}>
+                      {MOIS.map((mn,mi)=><option key={mi} value={mi}>{mn}</option>)}
+                    </select>
+                    <select style={S.select} value={ucLastY} onChange={e=>setUcLastY(parseInt(e.target.value))}>
+                      {encaisseYears.map(y=><option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{fontSize:11,color:'#64748b'}}>
+                  Effort annuel : <b style={{color:'#38bdf8'}}>{fmt(ucCotis*ucFreq)}</b><br/>
+                  Déjà encaissé : <b style={{color:'#38bdf8'}}>{fmt(ucCotisNow.brut)}</b> ({ucCotisNow.nb} versement{ucCotisNow.nb>1?'s':''})
+                </div>
+              </div>
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#38bdf8')}></span>Versements exceptionnels</div>
+                <VersTable vers={ucVers} color="#38bdf8" onAdd={addUcVers} onRemove={remUcVers} retY={retYear} />
+              </div>
+            </div>
+            <div>
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#38bdf8')}></span>Décomposition</div>
+                <DecompRow label="Épargne actuelle estimée" val={fmt(ucCurrent)} color="#38bdf8" bold />
+                <DecompRow label="Capital de départ" val={fmt(ucCap)} />
+                <DecompRow label="Cotisations encaissées capitalisées" val={fmt(ucCotisNow.vf)} />
+                <DecompRow label="Versements exceptionnels passés" val={fmt(ucVersNow.vf)} />
+                <DecompRow label="Capital initial capitalisé à la retraite" val={fmt(ucInitVF)} />
+                <DecompRow label="Cotisations périodiques (VF)" val={fmt(ucCotisVF)} />
+                <DecompRow label="Versements exceptionnels (VF)" val={fmt(ucExcepVF)} />
+                <DecompRow label="TOTAL" val={fmt(ucTotal)} color="#38bdf8" bold />
+                <MiniChart series={annualSeries.years.map((y,i)=>({y,val:annualSeries.ucV[i]}))} color="#38bdf8" />
+              </div>
+            </div>
+          </div>
+          <div style={S.navRow}>
+            <button style={S.btn('#64748b')} onClick={()=>setTab('atlanta')}>← ATL</button>
+            <button style={S.btn('#94a3b8')} onClick={()=>setTab('simulation')}>Simulation →</button>
+          </div>
+        </div>
+      )}
+
+
+      {/* ── SIMULATION ── */}
+      {tab==='simulation' && (
+        <div className="fade">
+          <div style={S.resultBanner('#94a3b8')}>
+            <div><div style={S.rLbl}>Épargne actuelle globale</div><div style={S.rVal('#cbd5e1')}>{fmt(totCurrent)}</div></div>
+            <div><div style={S.rLbl}>Projection 2035</div><div style={S.rVal('#94a3b8')}>{fmt(simTotals[0])}</div></div>
+            <div><div style={S.rLbl}>Pension 2035 → 85 ans</div><div style={S.rVal('#cbd5e1')}>{fmt(simPens[0])}/mois</div></div>
+          </div>
+
+          <div style={S.card}>
+            <div style={S.cardTitle}><span style={S.dot('#94a3b8')}></span>Hypothèses par contrat</div>
+            <div style={S.ibox}>
+              Les champs gris sont les inputs de simulation. Par défaut : REC = 10 400 MAD mensuel, versement exceptionnel = 0 ; ATL et UC = 0.
+              Le taux de capitalisation reprend le taux du contrat, mais tu peux le modifier ici sans changer les autres onglets.
+            </div>
+            <div style={{overflowX:'auto'}}>
+              <table style={S.table}>
+                <thead><tr>
+                  <th style={S.th}>Contrat</th>
+                  <th style={S.th}>Épargne actuelle</th>
+                  <th style={S.th}>Cotisation mensuelle</th>
+                  <th style={S.th}>Versement exceptionnel</th>
+                  <th style={S.th}>Fréquence exceptionnelle</th>
+                </tr></thead>
+                <tbody>
+                  {simContracts.map(c=>(
+                    <tr key={c.key}>
+                      <td style={{...S.td,fontWeight:700,color:c.color}}>{c.label}</td>
+                      <td style={S.td}><input style={{...S.tinput,background:'#111827',color:c.color,fontWeight:700}} value={Math.round(c.current)} readOnly /></td>
+                      <td style={S.td}><input style={{...S.tinput,background:'#111827'}} type="number" value={c.monthly} onChange={e=>updateSim(c.key,'monthly',parseFloat(e.target.value)||0)} /></td>
+                      <td style={S.td}><input style={{...S.tinput,background:'#111827'}} type="number" value={c.exceptional} onChange={e=>updateSim(c.key,'exceptional',parseFloat(e.target.value)||0)} /></td>
+                      <td style={S.td}>
+                        <select style={{...S.tselect,background:'#111827'}} value={c.exFreq} onChange={e=>updateSim(c.key,'exFreq',parseInt(e.target.value))}>
+                          <option value={12}>Mensuelle</option>
+                          <option value={4}>Trimestrielle</option>
+                          <option value={2}>Semestrielle</option>
+                          <option value={1}>Annuelle</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style={S.grid2}>
+            {simContracts.map(c=>(
+              <div key={c.key} style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot(c.color)}></span>Taux de capitalisation — {c.label}</div>
+                <Range min={0} max={15} step={0.25} value={c.rate} onChange={v=>updateSim(c.key,'rate',v)} color={c.color} label="Taux annuel de simulation" />
+              </div>
+            ))}
+          </div>
+
+          <div style={S.card}>
+            <div style={S.cardTitle}><span style={S.dot('#94a3b8')}></span>Valeur future & pension mensuelle jusqu’à 85 ans</div>
+            <div style={{overflowX:'auto'}}>
+              <table style={S.table}>
+                <thead><tr>
+                  <th style={S.th}>Contrat</th>
+                  {simYears.map(y=><th key={y} style={{...S.th,textAlign:'right'}}>Retraite {y}</th>)}
+                </tr></thead>
+                <tbody>
+                  {simContracts.map(c=>(
+                    <tr key={c.key}>
+                      <td style={{...S.td,fontWeight:700,color:c.color}}>{c.label}</td>
+                      {simYears.map(y=>{
+                        const r=calcSim(c.current,c.monthly,c.exceptional,c.exFreq,c.rate,y,currentAge);
+                        return <td key={y} style={{...S.td,textAlign:'right'}}>
+                          <div style={{fontWeight:700,color:c.color}}>{fmt(r.total)}</div>
+                          <div style={{fontSize:10,color:'#64748b'}}>{fmt(r.pen)}/mois</div>
+                        </td>;
+                      })}
+                    </tr>
+                  ))}
+                  <tr style={{background:'#94a3b810'}}>
+                    <td style={{...S.td,fontWeight:800,color:'#e2e8f0'}}>TOTAL</td>
+                    {simYears.map((y,i)=><td key={y} style={{...S.td,textAlign:'right'}}>
+                      <div style={{fontWeight:800,color:'#cbd5e1'}}>{fmt(simTotals[i])}</div>
+                      <div style={{fontSize:10,color:'#94a3b8'}}>{fmt(simPens[i])}/mois</div>
+                    </td>)}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style={S.card}>
+            <div style={S.cardTitle}><span style={S.dot('#94a3b8')}></span>Dessin comparatif</div>
+            {(() => {
+              const max=Math.max(...simTotals,1);
+              return <div style={{display:'flex',alignItems:'flex-end',gap:18,height:160,padding:'8px 12px'}}>
+                {simYears.map((y,i)=>(
+                  <div key={y} style={{flex:1,textAlign:'center'}}>
+                    <div style={{height:Math.max(4,(simTotals[i]/max)*120),background:'#94a3b8',borderRadius:'6px 6px 0 0',opacity:(i===0 ? .65 : i===1 ? .82 : 1)}}></div>
+                    <div style={{fontSize:11,color:'#cbd5e1',fontWeight:700,marginTop:6}}>{y}</div>
+                    <div style={{fontSize:10,color:'#64748b'}}>{fmtS(simTotals[i])}</div>
+                    <div style={{fontSize:10,color:'#94a3b8'}}>{fmt(simPens[i])}/mois</div>
+                  </div>
+                ))}
+              </div>
+            })()}
+          </div>
+
+          <div style={S.navRow}>
+            <button style={S.btn('#64748b')} onClick={()=>setTab('uc')}>← ATL UC</button>
+            <button style={S.btn('#a78bfa')} onClick={()=>setTab('projection')}>Projection globale →</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── PROJECTION ── */}
+      {tab==='projection' && (
+        <div className="fade">
+          {/* Banner total */}
+          <div style={{background:'linear-gradient(135deg,#1e1040 0%,#0d1829 100%)',borderRadius:12,padding:'20px 24px',marginBottom:12,border:'1px solid #4c1d95',display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+            <div>
+              <div style={S.rLbl}>Épargne globale actuelle</div>
+              <div style={{fontSize:28,fontWeight:700,color:'#c4b5fd',fontVariantNumeric:'tabular-nums'}}>{fmt(totCurrent)}</div>
+            </div>
+            <div><div style={S.rLbl}>Capital total à la retraite</div><div style={S.rVal('#a78bfa')}>{fmt(totCap)}</div></div>
+            <div><div style={S.rLbl}>Pension totale / mois</div><div style={S.rVal('#c4b5fd')}>{fmt(totPen)}/mois</div></div>
+            <div><div style={S.rLbl}>dont REC</div><div style={{fontSize:14,fontWeight:600,color:'#f97316'}}>{fmt(rcPen)}/mois</div></div>
+            <div><div style={S.rLbl}>dont ATL</div><div style={{fontSize:14,fontWeight:600,color:'#22c55e'}}>{fmt(atlPen)}/mois</div></div>
+            <div><div style={S.rLbl}>dont UC</div><div style={{fontSize:14,fontWeight:600,color:'#38bdf8'}}>{fmt(ucPen)}/mois</div></div>
+          </div>
+
+
+          <div style={S.grid2}>
+            <div style={S.card}>
+              <div style={S.cardTitle}><span style={S.dot('#c4b5fd')}></span>Épargne actuelle — décomposition</div>
+              <DecompRow label="REC" val={fmt(rcCurrent)} color="#f97316" />
+              <DecompRow label="ATL" val={fmt(atlCurrent)} color="#22c55e" />
+              <DecompRow label="ATL UC" val={fmt(ucCurrent)} color="#38bdf8" />
+              <DecompRow label="TOTAL ACTUEL" val={fmt(totCurrent)} color="#c4b5fd" bold />
+            </div>
+            <div style={S.card}>
+              <div style={S.cardTitle}><span style={S.dot('#a78bfa')}></span>Retraite & pension jusqu’à 85 ans — décomposition</div>
+              <DecompRow label="Capital retraite REC" val={fmt(rcTotal)} color="#f97316" />
+              <DecompRow label="Capital retraite ATL" val={fmt(atlTotal)} color="#22c55e" />
+              <DecompRow label="Capital retraite ATL UC" val={fmt(ucTotal)} color="#38bdf8" />
+              <DecompRow label="Capital retraite total" val={fmt(totCap)} color="#a78bfa" bold />
+              <DecompRow label="Pension REC" val={fmt(rcPen)+'/mois'} color="#f97316" />
+              <DecompRow label="Pension ATL" val={fmt(atlPen)+'/mois'} color="#22c55e" />
+              <DecompRow label="Pension ATL UC" val={fmt(ucPen)+'/mois'} color="#38bdf8" />
+              <DecompRow label="Pension totale" val={fmt(totPen)+'/mois'} color="#c4b5fd" bold />
+            </div>
+          </div>
+
+          {/* Chart global empilé */}
+          <div style={S.card}>
+            <div style={S.cardTitle}><span style={S.dot('#a78bfa')}></span>Évolution du capital combiné</div>
+            {(() => {
+              const {years,rcV,atlV,ucV}=annualSeries;
+              const totV=rcV.map((v,i)=>v+atlV[i]+ucV[i]);
+              const max=Math.max(...totV,1);
+              return (
+                <>
+                  <div style={{display:'flex',alignItems:'flex-end',gap:2,height:160,padding:'0 2px',marginTop:8}}>
+                    {years.map((y,i)=>{
+                      const hT=Math.max(2,(totV[i]/max)*155);
+                      const hR=totV[i]>0?(rcV[i]/totV[i])*hT:0;
+                      const hA=totV[i]>0?(atlV[i]/totV[i])*hT:0;
+                      const hU=Math.max(0,hT-hR-hA);
+                      const isL=i===years.length-1;
+                      const op=isL?1:.5;
+                      return (
+                        <div key={y} style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'flex-end',alignItems:'center',gap:1}} title={fmtS(totV[i])}>
+                          <div style={{width:'100%',display:'flex',flexDirection:'column-reverse',borderRadius:'2px 2px 0 0',overflow:'hidden'}}>
+                            <div style={{height:hR,background:'#f97316',opacity:op,flexShrink:0}}/>
+                            <div style={{height:hA,background:'#22c55e',opacity:op,flexShrink:0}}/>
+                            <div style={{height:Math.max(0,hU),background:'#38bdf8',opacity:op,flexShrink:0}}/>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:8,color:'#475569',marginTop:4}}>
+                    {years.map((y,i)=><span key={y}>{(i===0||i===years.length-1||years.length<=12||i%Math.ceil(years.length/8)===0)?"'"+String(y).slice(2):''}</span>)}
+                  </div>
+                  <div style={{display:'flex',gap:14,marginTop:10,fontSize:11,flexWrap:'wrap'}}>
+                    {[['#f97316','REC'],['#22c55e','ATL'],['#38bdf8','UC']].map(([c,l])=>(
+                      <span key={l}><span style={{display:'inline-block',width:8,height:8,background:c,borderRadius:2,marginRight:4}}></span>{l}</span>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
+          <div style={S.grid2}>
+            {/* Tableau */}
+            <div style={S.card}>
+              <div style={S.cardTitle}><span style={S.dot('#a78bfa')}></span>Tableau annuel</div>
+              <div style={{overflowX:'auto'}}>
+                <table style={S.table}>
+                  <thead><tr>
+                    <th style={S.th}>Année</th>
+                    <th style={{...S.th,color:'#f97316'}}>REC</th>
+                    <th style={{...S.th,color:'#22c55e'}}>ATL</th>
+                    <th style={{...S.th,color:'#38bdf8'}}>UC</th>
+                    <th style={S.th}>Total</th>
+                  </tr></thead>
+                  <tbody>
+                    {annualSeries.years.map((y,i)=>{
+                      const tot=annualSeries.rcV[i]+annualSeries.atlV[i]+annualSeries.ucV[i];
+                      const isR=y===retYear;
+                      return (
+                        <tr key={y} style={{background:isR?'#a78bfa10':'transparent'}}>
+                          <td style={{...S.td,fontWeight:isR?700:500,color:isR?'#a78bfa':'#e2e8f0'}}>{isR?'★ ':''}{y}</td>
+                          <td style={{...S.td,color:'#f97316',textAlign:'right'}}>{fmtS(annualSeries.rcV[i])}</td>
+                          <td style={{...S.td,color:'#22c55e',textAlign:'right'}}>{fmtS(annualSeries.atlV[i])}</td>
+                          <td style={{...S.td,color:'#38bdf8',textAlign:'right'}}>{fmtS(annualSeries.ucV[i])}</td>
+                          <td style={{...S.td,fontWeight:isR?700:500,textAlign:'right'}}>{fmtS(tot)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              {/* Scénarios */}
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#a78bfa')}></span>Scénarios ±2%</div>
+                <div style={S.scGrid}>
+                  {[[-2,'Pessimiste','#ef4444'],[0,'Base','#a78bfa'],[2,'Optimiste','#22c55e']].map(([d,lbl,c])=>{
+                    const rrc=Math.max(0,rcR+d/100), ratl=Math.max(0,atlR+d/100), ruc=Math.max(0,ucR+d/100);
+                    const {pastCVF:pc,futCVF:fc,pastEVF:pe,futEVF:fe}=calcRc(rcRows,rrc,retYear);
+                    const sRc=fvLump(rcCap,rrc,tBase)+pc+fc+pe+fe;
+                    const sAtl=fvLump(atlCap,ratl,tBase)+fvAnnuity(atlCotis,ratl,atlFreq,tBase)+calcVersVF(atlVers,ratl,retYear);
+                    const sUc=fvLump(ucCap,ruc,tBase)+fvAnnuity(ucCotis,ruc,ucFreq,tBase)+calcVersVF(ucVers,ruc,retYear);
+                    const sC=sRc+sAtl+sUc;
+                    return (
+                      <div key={lbl} style={S.scBox(c)}>
+                        <div style={S.scLbl}>{lbl} {d>0?'+':''}{d}%</div>
+                        <div style={S.scCap(c)}>{fmtS(sC)}</div>
+                        <div style={S.scPen}>{fmt(pensionTo85(sRc, rrc*100, retYear, currentAge)+pensionTo85(sAtl, ratl*100, retYear, currentAge)+pensionTo85(sUc, ruc*100, retYear, currentAge))}/mois</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Récap effort */}
+              <div style={S.card}>
+                <div style={S.cardTitle}><span style={S.dot('#a78bfa')}></span>Effort d'épargne</div>
+                {[
+                  ['Capital initial REC',fmt(rcCap),'#f97316'],
+                  ['Cotisations REC (brut)',fmt(rcRows.reduce((s,r)=>s+r.cotis,0)),'#f97316'],
+                  ['Vers. excep. REC (brut)',fmt(rcRows.reduce((s,r)=>s+r.excep,0)),'#f97316'],
+                  ['Capital initial ATL',fmt(atlCap),'#22c55e'],
+                  ['Cotisations ATL (brut)',fmt(atlCotis*atlFreq*tBase),'#22c55e'],
+                  ['Vers. excep. ATL (brut)',fmt(atlVers.reduce((s,v)=>s+v.montant,0)),'#22c55e'],
+                  ['Capital initial UC',fmt(ucCap),'#38bdf8'],
+                  ['Cotisations UC (brut)',fmt(ucCotis*ucFreq*tBase),'#38bdf8'],
+                  ['Vers. excep. UC (brut)',fmt(ucVers.reduce((s,v)=>s+v.montant,0)),'#38bdf8'],
+                ].map(([l,v,c])=>(
+                  <div key={l} style={S.sumRow}>
+                    <span style={S.sumLbl}>{l}</span>
+                    <span style={{fontWeight:500,color:c,fontSize:12}}>{v}</span>
+                  </div>
+                ))}
+                <div style={{...S.sumRow,fontWeight:700,fontSize:14,borderBottom:'none',paddingTop:10}}>
+                  <span style={{color:'#e2e8f0'}}>Total effort</span>
+                  <span style={{color:'#a78bfa'}}>{fmt(
+                    rcCap+rcRows.reduce((s,r)=>s+r.cotis+r.excep,0)+
+                    atlCap+atlCotis*atlFreq*tBase+atlVers.reduce((s,v)=>s+v.montant,0)+
+                    ucCap+ucCotis*ucFreq*tBase+ucVers.reduce((s,v)=>s+v.montant,0)
+                  )}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      <div style={S.toast(toast.show)}>{toast.msg}</div>
+    </div>
+  );
+}
+
+ReactDOM.render(React.createElement(App), document.getElementById('root'));
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
